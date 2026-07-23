@@ -223,12 +223,12 @@
     </div>
     <label class="seed-row" for="seedInput">
       <span>시드</span>
-      <input type="text" id="seedInput" placeholder="비우면 매 판 랜덤 (예: b4357198)" spellcheck="false" maxlength="8" inputmode="text" autocomplete="off">
+      <input type="text" id="seedInput" placeholder="비우면 새 시드 자동 생성" spellcheck="false" maxlength="8" inputmode="text" autocomplete="off">
     </label>
     <label class="speed" for="speed">
       <span>속도</span>
       <input type="range" id="speed" min="0.5" max="3" step="0.5" value="2">
-      <span id="speedval">1x</span>
+      <span id="speedval">2x</span>
     </label>
     <div class="controls">
       <button class="btn-start" id="start">시작</button>
@@ -293,6 +293,9 @@
   const ALGORITHM_VERSION = 'los-shuffle-v2';
   const MAX_TICKETS = 100;
   const MAX_TICKETS_PER_ENTRY = 100;
+  const SMALL_DRAW_MAX_TICKETS = 4;
+  const DEFAULT_SPEED = 2;
+  const SMALL_DRAW_SPEED = 3;
   const MAX_NAME_LENGTH = 40;
   const FIXED_DT = 1 / 60;
   const MAX_FRAME_DT = 0.1;
@@ -319,6 +322,7 @@
   let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
   let rosterCollapsed = false;
   let sessionStarted = false;
+  let speedUserOverride = false;
 
   function isMobileLayout() {
     return window.matchMedia('(max-width: 760px)').matches;
@@ -459,12 +463,29 @@
     return '시드는 1~8자리의 16진수(0-9, a-f)로 입력해 주세요.';
   }
 
+  function recommendedSpeed(ticketCount) {
+    return ticketCount >= 2 && ticketCount <= SMALL_DRAW_MAX_TICKETS
+      ? SMALL_DRAW_SPEED
+      : DEFAULT_SPEED;
+  }
+
+  function updateSpeedLabel() {
+    speedVal.textContent = speed() + 'x';
+  }
+
+  function applyRecommendedSpeed(ticketCount, force = false) {
+    if (!force && speedUserOverride) return;
+    speedEl.value = String(recommendedSpeed(ticketCount));
+    updateSpeedLabel();
+  }
+
   function refreshInputState() {
     const parsed = parseRoster(namesEl.value);
     const sError = seedError();
     participantCountEl.textContent = `${parsed.participantCount}명`;
     ticketCountEl.textContent = `${parsed.ticketCount}장`;
     updateRosterSummary();
+    applyRecommendedSpeed(parsed.ticketCount);
     participantCountEl.classList.toggle('warn', parsed.participantCount < 2);
     ticketCountEl.classList.toggle('warn', parsed.ticketCount < 2 || parsed.ticketCount > MAX_TICKETS);
 
@@ -1120,6 +1141,70 @@
     }
   }
 
+  function combatMotionProfile() {
+    // Speeds are expressed in screen pixels per second, then converted to the
+    // simulation's per-frame velocity. Scaling by the shorter arena side keeps
+    // a phone, tablet, and desktop visually consistent without allowing a
+    // distant participant to cross the battlefield in a fraction of a second.
+    const scale = clampValue(Math.min(W, H) / 720, 0.72, 1.32);
+    return {
+      approach: 104 * scale,
+      fight: 68 * scale,
+      retreat: 92 * scale,
+      duelApproach: 112 * scale,
+      duelFight: 72 * scale,
+      zoneRun: 124 * scale,
+      knockback: 86 * scale,
+    };
+  }
+
+  function movePlayerTowardCapped(player, targetX, targetY, speedPxPerSecond, response, dt) {
+    let dx = targetX - player.x, dy = targetY - player.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 0.001) {
+      approachVelocity(player, 0, 0, response, dt, Math.max(0.01, speedPxPerSecond / 60));
+      return 0;
+    }
+
+    dx /= distance; dy /= distance;
+    const maxPerFrame = Math.max(0.01, speedPxPerSecond / 60);
+    approachVelocity(player, dx * maxPerFrame, dy * maxPerFrame, response, dt, maxPerFrame);
+
+    const frame = dt * 60;
+    let stepX = player.vx * frame, stepY = player.vy * frame;
+    const stepLength = Math.hypot(stepX, stepY);
+    if (stepLength >= distance) {
+      player.x = targetX;
+      player.y = targetY;
+      player.vx = 0;
+      player.vy = 0;
+      return 0;
+    }
+
+    player.x += stepX;
+    player.y += stepY;
+    player.x = clampValue(player.x, 16, W - 16);
+    player.y = clampValue(player.y, 16, H - 16);
+    return Math.hypot(targetX - player.x, targetY - player.y);
+  }
+
+  function addCappedCombatImpulse(player, impulseX, impulseY, maxSpeedPxPerSecond) {
+    player.vx += impulseX;
+    player.vy += impulseY;
+    const maxPerFrame = Math.max(0.01, maxSpeedPxPerSecond / 60);
+    const speed = Math.hypot(player.vx, player.vy);
+    if (speed > maxPerFrame && speed > 0.0001) {
+      const scale = maxPerFrame / speed;
+      player.vx *= scale;
+      player.vy *= scale;
+    }
+  }
+
+  function ambientEngageDistance() {
+    const unit = Math.max(1, Math.min(W, H));
+    return clampValue(Math.min(zone.r * 0.58, unit * 0.22), unit * 0.10, unit * 0.22);
+  }
+
   function movementPressure(currentDist) {
     const outsideDistance = Math.max(0, currentDist - Math.max(0, zone.r - 6));
     const timing = zoneTimingAt(gameTime);
@@ -1368,12 +1453,12 @@
     return pointInsideCircle(midX, midY, zone, Math.max(10, zone.r * 0.74));
   }
 
-  const DUEL_LEAD = 1.3;
+  const DUEL_LEAD = 1.6;
   function updateDuels(gt, dt) {
     const frame = dt * 60;
     while (killPtr < killTimes.length) {
       const placement = players.length - killPtr;
-      const lead = placement <= 2 ? 5.0 : placement <= 4 ? 2.4 : DUEL_LEAD;
+      const lead = placement <= 2 ? 6.0 : placement <= 4 ? 4.0 : DUEL_LEAD;
       if (gt < killTimes[killPtr] - lead) break;
       const victim = players[killOrder[killPtr]];
       if (!victim || !victim.alive) { killPtr++; continue; }
@@ -1422,6 +1507,8 @@
       activeDuels.push({
         cause, victim, killer,
         fireGt: killTimes[killPtr], placement, flashed: false,
+        phase: cause === 'combat' ? 'approach' : 'zone-run',
+        fightReady: false,
         beatClock: 0, attackIndex: 0, zonePulseClock: 0,
         fireZone, zoneGoalX, zoneGoalY,
         zoneMoveDelay: 0.28 + motionRng() * 0.48,
@@ -1436,29 +1523,23 @@
 
       if (cause === 'zone') {
         duel.zoneMoveDelay = Math.max(0, duel.zoneMoveDelay - dt);
+        const motion = combatMotionProfile();
         if (duel.zoneMoveDelay <= 0) {
-          let dx = duel.zoneGoalX - victim.x, dy = duel.zoneGoalY - victim.y;
-          const dist = Math.hypot(dx, dy) || 1;
           const latePressure = smoothstep01(gt / TOTAL);
-          const accel = 0.30 + latePressure * 0.38 + Math.min(0.42, dist / 150);
-          victim.vx += (dx / dist) * accel * frame;
-          victim.vy += (dy / dist) * accel * frame;
+          const urgency = smoothstep01(1 - Math.max(0, remain) / Math.max(0.8, duel.placement <= 4 ? 4 : 2));
+          const runSpeed = motion.zoneRun * (0.82 + latePressure * 0.12 + urgency * 0.16);
+          movePlayerTowardCapped(victim, duel.zoneGoalX, duel.zoneGoalY, runSpeed, 2.2, dt);
+        } else {
+          approachVelocity(victim, 0, 0, 2.0, dt, motion.zoneRun / 60);
+          victim.x += victim.vx * frame;
+          victim.y += victim.vy * frame;
         }
-        victim.vx *= Math.pow(0.90, frame);
-        victim.vy *= Math.pow(0.90, frame);
-        victim.x += victim.vx * frame;
-        victim.y += victim.vy * frame;
 
-        // In the final moments, settle close to the future blue boundary so the
-        // elimination reads as a failed rotation rather than a stationary death.
-        if (remain < 0.42) {
-          const settle = 1 - Math.exp(-dt * 7.5);
-          victim.x += (duel.zoneGoalX - victim.x) * settle;
-          victim.y += (duel.zoneGoalY - victim.y) * settle;
-        }
+        // A small stagger near the boundary communicates blue-zone damage, but
+        // the runner's travel itself remains under the same top-speed cap.
         if (remain < 0.9) {
-          victim.x += (motionRng() - 0.5) * 1.35 * frame;
-          victim.y += (motionRng() - 0.5) * 1.35 * frame;
+          victim.x += (motionRng() - 0.5) * 0.65 * frame;
+          victim.y += (motionRng() - 0.5) * 0.65 * frame;
         }
         victim.x = clampValue(victim.x, 16, W - 16);
         victim.y = clampValue(victim.y, 16, H - 16);
@@ -1468,6 +1549,7 @@
           flashes.push({ x: victim.x, y: victim.y, life: 0.72, kind: 'zone' });
         }
       } else if (killer && killer.alive) {
+        const motion = combatMotionProfile();
         const anchor = safeCombatAnchor(victim, killer);
         let lineX = victim.x - killer.x, lineY = victim.y - killer.y;
         const lineD = Math.hypot(lineX, lineY) || 1;
@@ -1476,33 +1558,50 @@
         const standoff = Math.min(isFinal ? 30 : 20, Math.max(9, zone.r * 0.32));
         const vTarget = pointInsideCircle(anchor.x + lineX * standoff, anchor.y + lineY * standoff, zone, Math.max(8, zone.r * 0.86));
         const kTarget = pointInsideCircle(anchor.x - lineX * standoff, anchor.y - lineY * standoff, zone, Math.max(8, zone.r * 0.86));
-        const lerp = 1 - Math.pow(0.88, frame);
-        victim.x += (vTarget.x - victim.x) * lerp;
-        victim.y += (vTarget.y - victim.y) * lerp;
-        killer.x += (kTarget.x - killer.x) * lerp;
-        killer.y += (kTarget.y - killer.y) * lerp;
 
-        duel.beatClock += dt;
-        const beatEvery = (isFinal ? 16 : 26) / 60;
-        if (remain < (isFinal ? 1.6 : 0.9) && duel.beatClock >= beatEvery) {
-          duel.beatClock -= beatEvery;
-          duel.attackIndex++;
-          const atk = duel.attackIndex % 2 === 1 ? killer : victim;
-          const def = atk === killer ? victim : killer;
-          let dx = def.x - atk.x, dy = def.y - atk.y;
-          const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-          const power = isFinal ? 14 : 7;
-          atk.x += dx * power * 0.4; atk.y += dy * power * 0.4;
-          def.vx += dx * power; def.vy += dy * power;
-          def.x += dx * power; def.y += dy * power;
-          flashes.push({ x: (atk.x + def.x) / 2, y: (atk.y + def.y) / 2, life: 0.8, kind: 'combat' });
+        const urgency = smoothstep01(1 - Math.max(0, remain) / Math.max(0.8, isFinal ? 6 : 4));
+        const approachSpeed = motion.duelApproach * (1 + urgency * 0.12);
+        const vRemaining = movePlayerTowardCapped(
+          victim, vTarget.x, vTarget.y,
+          duel.fightReady ? motion.duelFight : approachSpeed,
+          duel.fightReady ? 3.0 : 2.2, dt
+        );
+        const kRemaining = movePlayerTowardCapped(
+          killer, kTarget.x, kTarget.y,
+          duel.fightReady ? motion.duelFight : approachSpeed,
+          duel.fightReady ? 3.0 : 2.2, dt
+        );
+        const pairDistance = Math.hypot(victim.x - killer.x, victim.y - killer.y);
+        if (!duel.fightReady && (pairDistance <= standoff * 2 + 8 || (vRemaining < 5 && kRemaining < 5))) {
+          duel.fightReady = true;
+          duel.phase = 'fight';
+          victim.vx *= 0.45; victim.vy *= 0.45;
+          killer.vx *= 0.45; killer.vy *= 0.45;
         }
 
-        if (remain < 0.9) {
-          victim.x += (motionRng() - 0.5) * 2.2 * frame;
-          victim.y += (motionRng() - 0.5) * 2.2 * frame;
-          killer.x += (motionRng() - 0.5) * 2.2 * frame;
-          killer.y += (motionRng() - 0.5) * 2.2 * frame;
+        if (duel.fightReady) {
+          duel.beatClock += dt;
+          const beatEvery = (isFinal ? 16 : 26) / 60;
+          if (remain < (isFinal ? 1.6 : 0.9) && duel.beatClock >= beatEvery) {
+            duel.beatClock -= beatEvery;
+            duel.attackIndex++;
+            const atk = duel.attackIndex % 2 === 1 ? killer : victim;
+            const def = atk === killer ? victim : killer;
+            let dx = def.x - atk.x, dy = def.y - atk.y;
+            const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+            const attackImpulse = isFinal ? 0.46 : 0.30;
+            const defenseImpulse = isFinal ? 0.92 : 0.62;
+            addCappedCombatImpulse(atk, dx * attackImpulse, dy * attackImpulse, motion.duelFight);
+            addCappedCombatImpulse(def, dx * defenseImpulse, dy * defenseImpulse, motion.knockback);
+            flashes.push({ x: (atk.x + def.x) / 2, y: (atk.y + def.y) / 2, life: 0.8, kind: 'combat' });
+          }
+
+          if (remain < 0.9) {
+            victim.x += (motionRng() - 0.5) * 0.65 * frame;
+            victim.y += (motionRng() - 0.5) * 0.65 * frame;
+            killer.x += (motionRng() - 0.5) * 0.65 * frame;
+            killer.y += (motionRng() - 0.5) * 0.65 * frame;
+          }
         }
       }
 
@@ -1578,7 +1677,10 @@
       for (let j = i + 1; j < free.length; j++) {
         const a = free[i], b = free[j];
         const dx = b.x - a.x, dy = b.y - a.y;
-        let score = (dx * dx + dy * dy) * (0.82 + motionRng() * 0.36);
+        const distanceSq = dx * dx + dy * dy;
+        const maxDistance = ambientEngageDistance();
+        if (distanceSq > maxDistance * maxDistance) continue;
+        let score = distanceSq * (0.82 + motionRng() * 0.36);
         if (a.name === b.name) score += 100000000;
         if (a.lastOpponentId === b.id || b.lastOpponentId === a.id) score += 50000000;
         if (score < bestScore) { bestScore = score; best = { a, b }; }
@@ -1588,12 +1690,21 @@
   }
 
   function startAmbientSkirmish(a, b) {
+    const motion = combatMotionProfile();
+    const distance = Math.hypot(a.x - b.x, a.y - b.y);
+    const standoff = Math.min(24, Math.max(10, zone.r * 0.25));
+    const closingDistance = Math.max(0, distance - standoff * 2);
+    const approachTimeout = clampValue(
+      closingDistance / Math.max(1, motion.approach * 2) + 1.0,
+      1.0, 3.2
+    );
+
     a.skirmishing = b.skirmishing = true;
     a.action = b.action = 'approach';
     skirmishes.push({
-      a, b, phase: 'approach', phaseTimer: 0.38 + motionRng() * 0.34,
+      a, b, phase: 'approach', phaseTimer: approachTimeout,
       fightDuration: 1.25 + motionRng() * 0.9,
-      retreatDuration: 0.55 + motionRng() * 0.35,
+      retreatDuration: 0.75 + motionRng() * 0.45,
       beatClock: 0, attackIndex: 0,
       retreatAX: a.x, retreatAY: a.y, retreatBX: b.x, retreatBY: b.y,
     });
@@ -1635,33 +1746,43 @@
       }
 
       sk.phaseTimer -= dt;
+      const motion = combatMotionProfile();
       if (sk.phase === 'approach') {
         a.action = b.action = 'approach';
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-        const lerp = 1 - Math.pow(0.87, frame);
         const standoff = Math.min(24, Math.max(10, zone.r * 0.25));
-        for (const who of [a, b]) {
-          const ang = Math.atan2(who.y - my, who.x - mx);
-          const target = pointInsideCircle(mx + Math.cos(ang) * standoff, my + Math.sin(ang) * standoff, zone, Math.max(8, zone.r * 0.86));
-          who.x += (target.x - who.x) * lerp;
-          who.y += (target.y - who.y) * lerp;
-        }
-        if (sk.phaseTimer <= 0) {
+        const aAngle = Math.atan2(a.y - my, a.x - mx);
+        const bAngle = Math.atan2(b.y - my, b.x - mx);
+        const aTarget = pointInsideCircle(mx + Math.cos(aAngle) * standoff, my + Math.sin(aAngle) * standoff, zone, Math.max(8, zone.r * 0.86));
+        const bTarget = pointInsideCircle(mx + Math.cos(bAngle) * standoff, my + Math.sin(bAngle) * standoff, zone, Math.max(8, zone.r * 0.86));
+        const aRemaining = movePlayerTowardCapped(a, aTarget.x, aTarget.y, motion.approach, 2.1, dt);
+        const bRemaining = movePlayerTowardCapped(b, bTarget.x, bTarget.y, motion.approach, 2.1, dt);
+        const pairDistance = Math.hypot(a.x - b.x, a.y - b.y);
+        const ready = pairDistance <= standoff * 2 + 7 || (aRemaining < 5 && bRemaining < 5);
+
+        if (ready) {
           sk.phase = 'fight';
           sk.phaseTimer = sk.fightDuration;
           a.action = b.action = 'fight';
+          a.vx *= 0.45; a.vy *= 0.45;
+          b.vx *= 0.45; b.vy *= 0.45;
+        } else if (sk.phaseTimer <= 0) {
+          // The pair could not meet naturally within the approach window.
+          // Cancel instead of pulling either participant across the map.
+          finishAmbientSkirmish(sk, true);
+          skirmishes.splice(i, 1);
+          continue;
         }
       } else if (sk.phase === 'fight') {
         a.action = b.action = 'fight';
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-        const lerp = 1 - Math.pow(0.9, frame);
         const standoff = Math.min(20, Math.max(9, zone.r * 0.23));
-        for (const who of [a, b]) {
-          const ang = Math.atan2(who.y - my, who.x - mx);
-          const target = pointInsideCircle(mx + Math.cos(ang) * standoff, my + Math.sin(ang) * standoff, zone, Math.max(8, zone.r * 0.86));
-          who.x += (target.x - who.x) * lerp;
-          who.y += (target.y - who.y) * lerp;
-        }
+        const aAngle = Math.atan2(a.y - my, a.x - mx);
+        const bAngle = Math.atan2(b.y - my, b.x - mx);
+        const aTarget = pointInsideCircle(mx + Math.cos(aAngle) * standoff, my + Math.sin(aAngle) * standoff, zone, Math.max(8, zone.r * 0.86));
+        const bTarget = pointInsideCircle(mx + Math.cos(bAngle) * standoff, my + Math.sin(bAngle) * standoff, zone, Math.max(8, zone.r * 0.86));
+        movePlayerTowardCapped(a, aTarget.x, aTarget.y, motion.fight, 3.0, dt);
+        movePlayerTowardCapped(b, bTarget.x, bTarget.y, motion.fight, 3.0, dt);
 
         sk.beatClock += dt;
         const beatEvery = 20 / 60;
@@ -1672,8 +1793,8 @@
           const def = atk === a ? b : a;
           let dx = def.x - atk.x, dy = def.y - atk.y;
           const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-          atk.x += dx * 3; atk.y += dy * 3;
-          def.x += dx * 6; def.y += dy * 6;
+          addCappedCombatImpulse(atk, dx * 0.22, dy * 0.22, motion.fight);
+          addCappedCombatImpulse(def, dx * 0.48, dy * 0.48, motion.knockback);
           flashes.push({ x: (atk.x + def.x) / 2, y: (atk.y + def.y) / 2, life: 0.5, kind: 'combat' });
         }
 
@@ -1685,12 +1806,9 @@
         }
       } else {
         a.action = b.action = 'retreat';
-        const lerp = 1 - Math.pow(0.86, frame);
-        a.x += (sk.retreatAX - a.x) * lerp;
-        a.y += (sk.retreatAY - a.y) * lerp;
-        b.x += (sk.retreatBX - b.x) * lerp;
-        b.y += (sk.retreatBY - b.y) * lerp;
-        if (sk.phaseTimer <= 0) {
+        const aRemaining = movePlayerTowardCapped(a, sk.retreatAX, sk.retreatAY, motion.retreat, 2.3, dt);
+        const bRemaining = movePlayerTowardCapped(b, sk.retreatBX, sk.retreatBY, motion.retreat, 2.3, dt);
+        if (sk.phaseTimer <= 0 || (aRemaining < 4 && bRemaining < 4)) {
           finishAmbientSkirmish(sk, false);
           skirmishes.splice(i, 1);
         }
@@ -1709,7 +1827,7 @@
         let dx = b.x - a.x, dy = b.y - a.y;
         let d = Math.hypot(dx, dy);
         if (d < minDist && d > 0.001) {
-          const push = (minDist - d) / 2; dx /= d; dy /= d;
+          const push = Math.min(4, (minDist - d) / 2); dx /= d; dy /= d;
           a.x -= dx * push; a.y -= dy * push; b.x += dx * push; b.y += dy * push;
         }
       }
@@ -2035,6 +2153,7 @@
     sessionStarted = false;
     setRosterCollapsed(false);
     setInputLocked(false);
+    speedUserOverride = false;
     drawTerrain();
     refreshInputState();
   }
@@ -2042,8 +2161,11 @@
 
   namesEl.addEventListener('input', refreshInputState);
   seedInputEl.addEventListener('input', refreshInputState);
-  speedEl.addEventListener('input', () => speedVal.textContent = speed() + 'x');
-  speedVal.textContent = speed() + 'x';
+  speedEl.addEventListener('input', () => {
+    speedUserOverride = true;
+    updateSpeedLabel();
+  });
+  updateSpeedLabel();
   startBtn.addEventListener('click', start);
   resetBtn.addEventListener('click', reset);
   rosterCollapseBtn.addEventListener('click', () => setRosterCollapsed(true));
