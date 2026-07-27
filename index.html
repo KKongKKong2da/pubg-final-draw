@@ -511,6 +511,11 @@
   let phase = 'STANDBY';
   let camera = { x: 0, y: 0, zoom: 1, targetX: 0, targetY: 0, targetZoom: 1 };
 
+  // Spectator focus: click/tap a participant to highlight everyone sharing that
+  // name (same-name tickets) and dim the rest. One name at a time.
+  let highlightName = null;
+  let lastHitTargets = [];   // filled each render for click hit-testing
+
   let zone = null;
   let zoneStages = [];
   let zoneMode = 'wait';
@@ -1983,12 +1988,17 @@
     const cycleNow = Math.floor(gameTime / CYCLE_LEN);
     const dangerPhase = cycleNow >= 4;
     const blinkOn = reducedMotion || (performance.now() % 360) < 180;
+    lastHitTargets = [];
+    const focusActive = highlightName !== null;
     for (const { p, point } of survivors) {
       const hot = p.engaging;
       const warm = p.skirmishing;
       const r = hot ? DOT_R + 2 : warm ? DOT_R + 1 : DOT_R;
       const outside = Math.hypot(p.x - zone.cx, p.y - zone.cy) > zone.r;
       const blinking = dangerPhase && outside;
+      const focused = focusActive && p.name === highlightName;
+      // when a name is focused, everyone else fades back
+      const dim = focusActive && !focused;
       const maxChars = n > 30 ? 7 : n > 12 ? 11 : 18;
       const label = p.name.length > maxChars ? p.name.slice(0, maxChars - 1) + '…' : p.name;
       const tw = ctx.measureText(label).width;
@@ -1996,26 +2006,44 @@
       const chipH = fontPx + 6;
       let chipX = point.x + r + 3;
       const chipY = point.y - chipH / 2;
-      // Labels normally open to the right. Near the right edge they flip left,
-      // so the participant remains identifiable even when the camera widens to
-      // include somebody outside the current safe circle.
       if (chipX + chipW > W - 6) chipX = point.x - r - 3 - chipW;
       chipX = clampValue(chipX, 6, Math.max(6, W - chipW - 6));
-      ctx.globalAlpha = blinking && !blinkOn ? 0.28 : 0.92;
+
+      // record hit area (dot + chip as one unit) for click/tap selection
+      lastHitTargets.push({ name: p.name, x: point.x, y: point.y, r,
+        chipX, chipY, chipW, chipH });
+
+      const baseChipA = blinking && !blinkOn ? 0.28 : 0.92;
+      ctx.globalAlpha = dim ? baseChipA * 0.22 : baseChipA;
       ctx.fillStyle = p.color;
       roundRect(chipX, chipY, chipW, chipH, 2); ctx.fill();
-      ctx.globalAlpha = 1;
+      // focused: bright outline around the label chip too
+      if (focused) {
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 2; ctx.strokeStyle = '#fff';
+        roundRect(chipX, chipY, chipW, chipH, 2); ctx.stroke();
+      }
+      ctx.globalAlpha = dim ? 0.4 : 1;
       ctx.fillStyle = '#fff';
       ctx.fillText(label, chipX + 5, point.y + 0.5);
 
-      ctx.globalAlpha = blinking && !blinkOn ? 0.35 : 1;
+      ctx.globalAlpha = dim ? 0.3 : (blinking && !blinkOn ? 0.35 : 1);
       ctx.beginPath();
       ctx.arc(point.x, point.y, r, 0, Math.PI * 2);
       ctx.fillStyle = hot ? '#ffd27a' : blinking ? '#56c8ff' : p.color;
       ctx.shadowColor = blinking ? 'rgba(56,189,248,0.98)' : hot ? 'rgba(255,180,60,0.95)' : warm ? 'rgba(255,120,60,0.7)' : 'rgba(0,0,0,0.55)';
       ctx.shadowBlur = blinking ? 12 : hot ? 14 : warm ? 9 : 4;
       ctx.fill(); ctx.shadowBlur = 0;
-      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke();
+      // focused markers get a bold white ring that reads over any color
+      if (focused) {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#fff';
+        ctx.shadowColor = 'rgba(255,255,255,0.9)'; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(point.x, point.y, r + 3.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke();
+      }
       ctx.globalAlpha = 1;
     }
   }
@@ -2117,6 +2145,7 @@
   function start() {
     if (running) return;
     if (!setup()) return;
+    highlightName = null;
     running = true;
     sessionStarted = true;
     if (isMobileLayout()) setRosterCollapsed(true);
@@ -2134,6 +2163,8 @@
     raf = null;
     players = [];
     killPtr = 0;
+    highlightName = null;
+    lastHitTargets = [];
     activeDuels = [];
     skirmishes = [];
     flashes = [];
@@ -2166,6 +2197,37 @@
     updateSpeedLabel();
   });
   updateSpeedLabel();
+  // Spectator focus: click/tap a marker (dot or its name chip) to spotlight
+  // everyone with that name; click the same target or empty space to clear.
+  function pickTargetAt(clientX, clientY) {
+    const rect = cv.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    let best = null, bestD = Infinity;
+    for (const t of lastHitTargets) {
+      // inside the name chip?
+      if (px >= t.chipX && px <= t.chipX + t.chipW && py >= t.chipY && py <= t.chipY + t.chipH) {
+        return t.name;
+      }
+      // near the dot? (generous radius for touch)
+      const d = Math.hypot(px - t.x, py - t.y);
+      if (d < bestD) { bestD = d; best = t; }
+    }
+    if (best && bestD <= Math.max(best.r + 10, 16)) return best.name;
+    return null;
+  }
+  function handleFocusClick(clientX, clientY) {
+    if (!running && !players.length) return;
+    const name = pickTargetAt(clientX, clientY);
+    if (name === null) highlightName = null;          // empty space clears
+    else if (name === highlightName) highlightName = null; // same target toggles off
+    else highlightName = name;                         // new target
+    if (!running) render();
+  }
+  cv.addEventListener('click', (e) => handleFocusClick(e.clientX, e.clientY));
+  cv.style.cursor = 'pointer';
+  cv.setAttribute('title', '참가자를 클릭하면 같은 이름을 모두 강조합니다');
+
   startBtn.addEventListener('click', start);
   resetBtn.addEventListener('click', reset);
   rosterCollapseBtn.addEventListener('click', () => setRosterCollapsed(true));

@@ -2,7 +2,7 @@
 
 **English** | [한국어](README.ko.md)
 
-Current version: **v1.0.0**
+Current version: **v1.1.0**
 
 Draw algorithm: **los-shuffle-v2**
 
@@ -41,10 +41,11 @@ This project addresses four goals:
 | **6-phase playzone** | After a brief initial observation, the next white circle appears first, and the blue playzone contracts over 6 phases. The first circle starts wide, with pressure increasing toward the end. |
 | **Distributed movement and spectator pacing** | Participants move toward different positions within the safe zone. Only nearby opponents approach one another to fight, and maximum speed limits during approach, engagement, and disengagement prevent anyone from suddenly flying in from far away. |
 | **Distinct combat and Blue Zone eliminations** | Combat and Blue Zone eliminations use different colors and effects, as in `재범님 KILLS 태훈님` and `BLUE ZONE ELIMINATES 태훈님`. |
+| **Cheer highlight** | Tap a participant during the draw to highlight every ticket sharing that name while the rest dim. Tap again to clear, or tap another name to move the highlight. It is a viewing aid and does not affect the result. |
 | **Late-game camera zoom** | After the first playzone phase ends, the camera smoothly zooms toward the survivors and the playzone. The zoom is limited so that every survivor remains visible on screen. |
 | **Fixed pacing and speed controls** | A draw takes approximately 60 seconds at 1× speed. The recommended default is 3× (approximately 20 seconds) for 2–4 total tickets and 2× (approximately 30 seconds) for 5 or more. Speed can be adjusted manually from 0.5× to 3×, and changing it during a draw does not cause time to jump. |
 | **Full ranking and copy** | The final ranking of every ticket is preserved. If one name has multiple tickets, it may appear multiple times in the ranking; separate ticket numbers are not displayed. |
-| **Seed-based reproduction** | Using the same seed with the same app and algorithm versions, roster, and input order reproduces the same full ranking. |
+| **Seed-based reproduction** | Using the same seed with the same algorithm version, roster, and input order reproduces the same full ranking. |
 | **Single-file and mobile support** | The map image and all code are contained in `index.html`. On mobile, the battleground follows the roster, seed, speed, and start controls. When a draw starts, the roster collapses into a summary and the page automatically moves to the battleground. Only the 3 most recent kill-feed entries appear below the map. |
 
 ---
@@ -67,15 +68,14 @@ For example, if A has 3 tickets while B and C each have 1, A's probability of wi
 
 All of the following must be identical:
 
-- App version
 - Draw algorithm version
 - Participant names and input order
 - Number of tickets for each name
 - Seed
 
-Copied results include the app version, algorithm version, seed, roster hash, participant count, and ticket count.
+Copied results include the app version, algorithm version, seed, roster hash, participant count, and ticket count. Reproducibility is governed by the draw algorithm version; the app version is recorded for reference only. Even when the app version increases, the same seed produces the same result as long as the algorithm version is unchanged.
 
-> **Prototypes and prereleases before v1.0.0 may produce different results even with the same seed. Starting with v1.0.0, result compatibility is maintained against `los-shuffle-v2`.**
+> **Prototypes and prereleases before v1.0.0 may produce different results even with the same seed. Starting with v1.0.0, result compatibility is maintained against `los-shuffle-v2`. For example, v1.0.0 and v1.1.0 share the same algorithm, so the same seed produces the same result.**
 
 ### Seed input behavior
 
@@ -134,7 +134,8 @@ I added full-ranking preservation, ranking copy, seed input and reproduction, pa
 2. To give someone multiple tickets, enter them as `name*3`.
 3. Set the speed and seed if needed. The default is 3× for 2–4 total tickets and 2× for 5 or more. Leaving the seed blank generates a new one automatically.
 4. Press **시작** to proceed through drop-position observation → playzone contraction → movement and combat → the last person standing.
-5. When the draw ends, use **전체 순위 보기** or **순위 복사**.
+5. During the draw, tap a participant to highlight everyone sharing that name; tap again or tap empty space to clear.
+6. When the draw ends, use **전체 순위 보기** or **순위 복사**.
 
 ### Mobile flow
 
@@ -178,7 +179,7 @@ In this example, there are 6 unique participants and 16 total tickets.
 
 ```text
 PUBG FINAL DRAW 결과
-app: v1.0.0
+app: v1.1.0
 algorithm: los-shuffle-v2
 seed: b4357198
 roster-hash: 91d4a1c2
@@ -250,9 +251,18 @@ Because `index.html` is the repository's default entry file, no separate build o
 
 ---
 
-## 🧪 Pre-Release Verification for v1.0.0
+## 🧪 Pre-Release Verification
 
-To avoid duplicating the development-process narrative, only the following results were regression-tested in the final release:
+### v1.1.0
+
+| Category | Verification |
+|---|---|
+| **Cheer highlight** | Verified that tapping a participant highlights every ticket sharing that name and dims the rest, tapping the same name clears it, tapping another name moves the highlight, and tapping empty space clears it. Confirmed for both dot and nameplate taps, and that the highlight resets on start and reset |
+| **Result independence** | Verified that the cheer highlight does not touch the result random stream: the same seed produces the same full ranking in v1.0.0 and v1.1.0 |
+
+### v1.0.0
+
+To avoid duplicating the development-process narrative, only the following results were regression-tested in the first stable release:
 
 | Category | Verification |
 |---|---|
@@ -269,6 +279,11 @@ To avoid duplicating the development-process narrative, only the following resul
 ---
 
 ## 📝 Changelog
+
+### v1.1.0 — Cheer Highlight (2026-07-27)
+
+- **Cheer highlight**: Tap a participant (dot or nameplate) during the draw to highlight every ticket sharing that name while the rest dim. Tap again to clear, tap another name to move the highlight, and tap empty space to clear all. This addresses feedback that attention scatters when one name is entered as multiple tickets.
+- The feature is a viewing aid and does not affect the result or seed reproduction. The draw algorithm remains `los-shuffle-v2`, so v1.0.0 seeds reproduce identically in v1.1.0.
 
 ### v1.0.0 — First Stable Release (2026-07-22)
 
