@@ -1,177 +1,180 @@
 # PUBG FINAL DRAW 🪂
 
-현재 버전: **v1.0.0**  
-추첨 알고리즘: **los-shuffle-v2**
+**English** | [한국어](README.ko.md)
 
-**PUBG FINAL DRAW**는 참가자 명단을 넣으면 PUBG 관전 미니맵처럼 최후의 1인을 가려내는 웹 기반 랜덤 추첨기입니다.
+Current version: **v1.0.0**
 
-룰렛이나 핀볼 대신 에란겔 위에 참가자들이 낙하하고, 자기장이 좁혀지고, 교전과 자기장 탈락이 이어진 끝에 최종 당첨자가 결정됩니다. 결과는 시작하는 순간 먼저 확정되며, 화면에 보이는 이동과 전투는 이미 정해진 순위를 재생하는 연출입니다.
+Draw algorithm: **los-shuffle-v2**
 
-설치나 서버 없이 `index.html` 하나로 실행할 수 있고, 전체 순위 복사, 시드 재현, 속도 조절, 모바일 화면을 지원합니다.
+**PUBG FINAL DRAW** is a web-based random draw tool that takes a participant roster and determines the last person standing, styled after a PUBG spectator minimap.
 
-> 이 프로젝트는 게임이 아니라 **추첨 도구**입니다. PUBG e스포츠 관전 미니맵의 문법을 빌려, “누가 뽑혔는가”라는 결과에 서사와 볼거리를 입히는 것이 목표입니다.
+Instead of a roulette wheel or pinball machine, participants drop onto Erangel, the playzone contracts, and combat and Blue Zone eliminations continue until the final winner is determined. The result is fixed first at the moment the draw begins; the movement and combat shown on screen are a presentation that plays back the predetermined ranking.
 
----
+It runs from a single `index.html` file with no installation or server required, and supports copying the full ranking, reproducing results from a seed, speed controls, and mobile screens.
 
-## 🎯 왜 만들었나
-
-사내에서 경품이나 순번을 정할 때 자주 쓰는 룰렛과 핀볼 추첨기는 편리하지만, 결과가 나오는 과정은 비교적 단조롭습니다.
-
-**2026-06-28(일), PUBG Nations Cup 2026(PNC 2026) 그랜드 파이널 DAY 3(결승 최종일)**을 보며 100명의 선수를 한 명씩 따라가는 대신, 전체 지도 위의 점과 이름표, 자기장, 교전과 탈락으로 상황을 전달하는 관전 화면이 인상적이었습니다. 그 화면 자체를 추첨에 적용하면, 단순한 뽑기를 함께 지켜보는 작은 이벤트로 만들 수 있겠다고 생각했습니다.
-
-이 프로젝트가 해결하려는 문제는 네 가지입니다.
-
-1. 여러 명 중 한 명을 뽑는 과정을 **배틀로얄 관전처럼 즐겁게 보여준다.**
-2. 연출이 아무리 화려해도 **결과는 시작 순간의 난수로만 결정한다.**
-3. `이름*N`으로 입력한 티켓 수만큼만 정확히 당첨 확률을 높인다.
-4. 전체 순위와 시드를 복사해 공유하고, 같은 조건에서 결과를 재현한다.
+> This project is not a game; it is a **draw tool**. By borrowing the visual language of a PUBG esports spectator minimap, it aims to add a story and spectacle to the result of “who was selected.”
 
 ---
 
-## 🧠 핵심 기능
+## 🎯 Why It Was Made
 
-| 기능 | 설명 |
+Roulette and pinball draw tools, commonly used internally to select prize winners or determine an order, are convenient, but the process of revealing the result is relatively monotonous.
+
+While watching the **PUBG Nations Cup 2026 (PNC 2026) Grand Finals DAY 3 (the final day) on Sunday, 2026-06-28**, I was impressed by the spectator view, which conveyed the situation through dots and nameplates, the playzone, combat, and eliminations on a full map instead of following all 100 players individually. I thought that applying this view to a draw could turn a simple selection into a small event that everyone could watch together.
+
+This project addresses four goals:
+
+1. **Make the process of selecting one person from many enjoyable to watch, like a battle royale broadcast.**
+2. No matter how elaborate the presentation is, **determine the result solely from randomness generated at the moment the draw starts.**
+3. Increase a participant's winning probability precisely according to the number of tickets entered with `name*N`.
+4. Copy and share the full ranking and seed, then reproduce the result under the same conditions.
+
+---
+
+## 🧠 Key Features
+
+| Feature | Description |
 |---|---|
-| **명단과 티켓 입력** | 쉼표 또는 줄바꿈으로 이름을 구분합니다. `이름*3`은 해당 이름이 3장의 독립 티켓으로 참가한다는 뜻입니다. |
-| **결과 우선 확정** | 시작 순간 결과 전용 난수로 전체 티켓 순서를 Fisher-Yates 셔플합니다. 이후의 화면은 확정된 결과를 재생합니다. |
-| **에란겔 주요 지역 낙하** | 참가자의 다수는 포친키, 로족, 야스나야, 스쿨 등 주요 지역 주변에 배치되고, 나머지는 전장 곳곳에 흩어집니다. 낙하 위치는 결과에 영향을 주지 않습니다. |
-| **6단계 자기장** | 짧은 초기 관찰 뒤 흰색 다음 원을 먼저 보여주고, 파란 자기장이 6단계에 걸쳐 좁혀집니다. 첫 원은 넓게 시작하고 후반으로 갈수록 압박이 커집니다. |
-| **분산 이동과 관전 리듬** | 참가자는 안전지대 안의 서로 다른 위치로 이동합니다. 가까운 상대끼리만 접근해 교전하고, 접근·격전·이탈에는 최고 속도 제한을 적용해 먼 곳에서 순간적으로 날아오지 않습니다. |
-| **교전·자기장 탈락 구분** | 교전은 `재범님 KILLS 태훈님`, 자기장 탈락은 `BLUE ZONE ELIMINATES 태훈님`처럼 서로 다른 색과 효과로 표시합니다. |
-| **후반 카메라 확대** | 첫 자기장이 끝난 뒤 생존자와 자기장 주변으로 부드럽게 확대합니다. 단, 모든 생존자가 화면 안에 보이는 범위까지만 확대합니다. |
-| **고정 페이싱과 속도 조절** | 1배속 약 60초입니다. 전체 티켓이 2~4장이면 기본 3배속(약 20초), 5장 이상이면 기본 2배속(약 30초)을 추천값으로 설정합니다. 0.5배부터 3배까지 직접 조절할 수 있고, 진행 중 속도를 바꾸어도 시간이 튀지 않습니다. |
-| **전체 순위와 복사** | 모든 티켓의 최종 순위를 보존합니다. 같은 이름이 여러 장이면 순위에 같은 이름이 여러 번 나올 수 있으며, 별도의 티켓 번호는 표시하지 않습니다. |
-| **시드 재현** | 같은 앱·알고리즘 버전, 같은 명단과 입력 순서에서 같은 시드를 사용하면 동일한 전체 순위를 재현합니다. |
-| **단일 파일·모바일 지원** | 지도 이미지와 코드가 모두 `index.html` 안에 들어 있습니다. 모바일은 명단·시드·속도·시작 버튼 다음에 전장을 배치하고, 시작하면 명단을 요약해 접은 뒤 전장으로 자동 이동합니다. 킬로그는 지도 아래에서 최근 3건만 표시합니다. |
+| **Roster and ticket input** | Separate names with commas or line breaks. `name*3` means that the name enters with 3 independent tickets. |
+| **Result determined first** | At the moment the draw begins, a result-only random stream shuffles the complete ticket order using Fisher-Yates. Everything shown afterward plays back the determined result. |
+| **Drops near major Erangel locations** | Most participants are placed around major locations such as Pochinki, Rozhok, Yasnaya, and School, while the rest are scattered across the battleground. Drop positions do not affect the result. |
+| **6-phase playzone** | After a brief initial observation, the next white circle appears first, and the blue playzone contracts over 6 phases. The first circle starts wide, with pressure increasing toward the end. |
+| **Distributed movement and spectator pacing** | Participants move toward different positions within the safe zone. Only nearby opponents approach one another to fight, and maximum speed limits during approach, engagement, and disengagement prevent anyone from suddenly flying in from far away. |
+| **Distinct combat and Blue Zone eliminations** | Combat and Blue Zone eliminations use different colors and effects, as in `재범님 KILLS 태훈님` and `BLUE ZONE ELIMINATES 태훈님`. |
+| **Late-game camera zoom** | After the first playzone phase ends, the camera smoothly zooms toward the survivors and the playzone. The zoom is limited so that every survivor remains visible on screen. |
+| **Fixed pacing and speed controls** | A draw takes approximately 60 seconds at 1× speed. The recommended default is 3× (approximately 20 seconds) for 2–4 total tickets and 2× (approximately 30 seconds) for 5 or more. Speed can be adjusted manually from 0.5× to 3×, and changing it during a draw does not cause time to jump. |
+| **Full ranking and copy** | The final ranking of every ticket is preserved. If one name has multiple tickets, it may appear multiple times in the ranking; separate ticket numbers are not displayed. |
+| **Seed-based reproduction** | Using the same seed with the same app and algorithm versions, roster, and input order reproduces the same full ranking. |
+| **Single-file and mobile support** | The map image and all code are contained in `index.html`. On mobile, the battleground follows the roster, seed, speed, and start controls. When a draw starts, the roster collapses into a summary and the page automatically moves to the battleground. Only the 3 most recent kill-feed entries appear below the map. |
 
 ---
 
-## ⚖️ 공정성과 재현
+## ⚖️ Fairness and Reproducibility
 
-### 결과와 연출을 분리한다
+### Separating the result from the presentation
 
-시작 버튼을 누르면 가장 먼저 참가 티켓 전체의 순위를 확정합니다. 낙하 위치, 자기장 경로, 이동, 교전, 카메라 확대는 결과와 분리된 별도의 난수 흐름을 사용합니다.
+When the start button is pressed, the full ranking of all participating tickets is determined before anything else. Drop positions, the playzone path, movement, combat, and camera zoom use separate random streams that are isolated from the result.
 
-따라서 화면에서 누군가 교전에 밀리거나 자기장에 잡히는 것처럼 보여도, 실제 순위는 그 장면보다 먼저 정해져 있습니다. 이후에 연출 코드를 바꾸더라도 결과용 난수열에는 영향을 주지 않습니다.
+Therefore, even if someone appears to lose a fight or get caught in the Blue Zone, their actual ranking was determined before that scene. Later changes to the presentation code do not affect the result random stream.
 
-### 모든 티켓은 같은 확률을 가진다
+### Every ticket has the same probability
 
-`이름*3`은 이름 하나에 특별한 보너스를 붙이는 것이 아니라 같은 이름의 독립 티켓 세 장을 배열에 넣는 방식입니다. 각 티켓은 다른 모든 티켓과 동일한 확률로 셔플됩니다.
+`name*3` does not give one name a special bonus. It places 3 independent tickets with that same name into the array. Every ticket is shuffled with the same probability as every other ticket.
 
-예를 들어 A가 3장, B와 C가 각각 1장이라면 A의 우승 확률은 3/5, B와 C는 각각 1/5입니다.
+For example, if A has 3 tickets while B and C each have 1, A's probability of winning is 3/5, while B's and C's probabilities are each 1/5.
 
-### 같은 결과를 재현하려면
+### Reproducing the same result
 
-다음 조건이 모두 같아야 합니다.
+All of the following must be identical:
 
-- 앱 버전
-- 추첨 알고리즘 버전
-- 참가자 이름과 입력 순서
-- 각 이름의 티켓 수
-- 시드
+- App version
+- Draw algorithm version
+- Participant names and input order
+- Number of tickets for each name
+- Seed
 
-복사 결과에는 앱 버전, 알고리즘 버전, 시드, 명단 해시, 참가자 수와 티켓 수가 함께 기록됩니다.
+Copied results include the app version, algorithm version, seed, roster hash, participant count, and ticket count.
 
-> **v1.0.0 이전 프로토타입과 프리릴리스는 동일한 시드라도 결과가 다를 수 있습니다. v1.0.0부터 `los-shuffle-v2`를 기준으로 결과 호환성을 유지합니다.**
+> **Prototypes and prereleases before v1.0.0 may produce different results even with the same seed. Starting with v1.0.0, result compatibility is maintained against `los-shuffle-v2`.**
 
-### 시드 입력 방식
+### Seed input behavior
 
-- 입력칸을 비우면 시작할 때마다 새 시드를 자동 생성합니다.
-- 자동 생성된 시드는 입력칸에는 채우지 않고 화면과 복사 결과에만 기록합니다.
-- 시드를 직접 입력하면 해당 값으로 시작하며, 사용자가 지우기 전까지 입력값을 유지합니다.
-
----
-
-## 🌱 개발 과정 - 비개발자가 AI와 함께 만들기까지
-
-이 프로젝트는 완성된 기획서를 한 번에 코드로 옮긴 것이 아니라, 아이디어를 AI에게 설명하고 실제로 실행한 뒤 어색한 부분을 말로 짚어 다시 고치는 방식으로 만들어졌습니다.
-
-### 1. 관전 경험을 추첨 아이디어로 바꾸기
-
-출발점은 **2026-06-28(일)에 시청한 PNC 2026 결승 DAY 3**의 PUBG e스포츠 전체 지도 관전 화면이었습니다. “게임을 직접 하는 것이 아니라 100명의 이동과 탈락을 지도 한 장으로 지켜보는 경험”을 추첨에 옮기고 싶었습니다. 이때 프로젝트를 게임이 아닌 **관전형 추첨 도구**로 정의했습니다.
-
-### 2. 화면보다 공정성을 먼저 정하기
-
-첫 설계 원칙은 “결과를 먼저 확정하고 나머지는 연출로 둔다”였습니다. Fisher-Yates 셔플과 독립 티켓 방식을 먼저 만들고, 반복 실행으로 티켓 수에 비례한 결과가 나오는지 확인한 뒤 화면을 붙였습니다.
-
-### 3. 에란겔과 주요 지역 낙하 넣기
-
-처음에는 단순한 격자 지도를 사용했지만 PUBG라는 인상을 바로 전달하기 위해 에란겔 지도를 넣었습니다. 참가자가 빈 땅에 균일하게 흩어지기보다 실제 경기처럼 주요 마을 주변에 모여 시작하도록 배치했습니다. 지도는 WebP로 압축해 HTML 안에 직접 내장했습니다.
-
-### 4. 자기장과 한 판의 리듬 다듬기
-
-첫 원과 마지막 원을 고정하고 그 사이를 6단계로 나눴습니다. 수축률, 단계별 시간, 첫 원의 크기와 예고 시간을 여러 번 조정했습니다. 파밍을 구현하지 않는 대신 시작 직후 짧게 낙하 위치를 보여주고, 흰 원을 먼저 공개한 뒤 파란 자기장이 움직이도록 압축했습니다. 한 판은 인원 수와 관계없이 1배속 약 60초로 맞췄습니다.
-
-### 5. 이동과 교전에 이야기를 만들기
-
-단순히 점이 사라지는 대신 가까운 참가자와 대치하고, 비살상 교전을 벌이고, 교전 후 흩어져 쉬었다가 다른 상대와 다시 만나는 흐름을 추가했습니다. 소수 인원에서도 먼 상대를 강제로 끌어오지 않도록 교전 가능 거리를 두고, 접근·자리 조정·이탈·자기장 이동에 최고 속도 제한을 적용했습니다. 자기장 밖 참가자는 안전지대로 이동하고, 늦은 참가자는 경계 근처까지 달려가다가 자기장에 탈락하도록 연출했습니다.
-
-### 6. 실제 관전 화면과 다시 비교하기
-
-실제 대회 미니맵 사진과 결과물을 나란히 보며 흰 원, 파란 위험지대, 킬로그, 후반 확대를 다시 조정했습니다. 생존자가 줄면 카메라가 자기장 주변으로 접근하되, 화면 밖에 참가자가 사라지지 않도록 확대 상한을 두었습니다. 구현하지 않는 레드존 흔적은 제거했습니다.
-
-### 7. 추첨 도구로서 필요한 기능 완성하기
-
-전체 순위 보존, 순위 복사, 시드 입력과 재현, 참가자·티켓 수 표시, 입력 오류 안내, 모바일 레이아웃을 추가했습니다. 모바일은 설정을 마친 뒤 바로 전장을 볼 수 있도록 시작·리셋 아래에 맵을 배치하고, 시작 시 명단 입력을 요약 상태로 접은 뒤 전장으로 자동 이동하도록 정리했습니다. 킬로그는 전장을 가리지 않게 지도 아래에서 최근 3건만 보여줍니다. 마지막으로 결과·배치·이동 난수를 분리하고, 고정 시간 스텝과 Web Crypto 기반 랜덤 시드를 적용해 v1.0.0 구조를 확정했습니다.
-
-### 이 과정에서 배운 것
-
-- 먼저 목적과 원칙을 문장으로 고정하면 기능 선택의 기준이 생깁니다.
-- 그럴듯한 화면과 올바른 결과는 별개이므로 숫자와 반복 실행으로 확인해야 합니다.
-- 실제 게임을 그대로 복제하기보다 추첨에 필요한 관전 문법만 남기는 편이 더 좋았습니다.
-- 비개발자도 원하는 경험과 어색한 지점을 구체적으로 설명하면 AI와 함께 완성도를 높일 수 있습니다.
+- If the field is left empty, a new seed is generated automatically each time a draw starts.
+- An automatically generated seed is not inserted into the input field; it appears only on screen and in copied results.
+- If a seed is entered manually, the draw starts with that value and the input remains until the user clears it.
 
 ---
 
-## 🕹️ 사용 방법
+## 🌱 Development Process — How a Non-Developer Built It with AI
 
-### 기본 흐름
+This project was not created by translating a finished specification into code all at once. It was built by explaining ideas to AI, running the result, describing what felt awkward, and iterating on those points.
 
-1. 참가자 이름을 쉼표 또는 줄바꿈으로 입력합니다.
-2. 여러 티켓을 주려면 `이름*3`처럼 적습니다.
-3. 필요하면 속도와 시드를 설정합니다. 전체 티켓이 2~4장이면 기본 3배속, 5장 이상이면 기본 2배속으로 맞춰집니다. 시드를 비우면 새 시드를 자동 생성합니다.
-4. **시작**을 누르면 낙하 위치 관찰 → 자기장 수축 → 이동과 교전 → 최후의 1인 순서로 진행됩니다.
-5. 종료 후 **전체 순위 보기** 또는 **순위 복사**를 사용합니다.
+### 1. Turning a spectator experience into a draw concept
 
-### 모바일 사용 흐름
+The starting point was the full-map PUBG esports spectator view from **PNC 2026 Finals DAY 3, watched on Sunday, 2026-06-28**. I wanted to bring the experience of “watching the movement and elimination of 100 players on a single map rather than playing the game” into a draw. At this point, I defined the project not as a game, but as a **spectator-style draw tool**.
 
-모바일에서는 다음 순서로 화면이 배치됩니다.
+### 2. Establishing fairness before designing the screen
+
+The first design principle was to “determine the result first and treat everything else as presentation.” I implemented the Fisher-Yates shuffle and independent-ticket model first, verified through repeated runs that outcomes were proportional to ticket counts, and only then added the visuals.
+
+### 3. Adding Erangel and drops near major locations
+
+The first version used a simple grid map, but I added Erangel to immediately convey the PUBG theme. Instead of distributing participants uniformly across empty terrain, I placed them so they would start clustered around major towns, as they would in a real match. The map was compressed as WebP and embedded directly into the HTML.
+
+### 4. Refining the playzone and the rhythm of a match
+
+I fixed the first and final circles and divided the interval between them into 6 phases. I repeatedly adjusted the contraction rates, time per phase, first-circle size, and preview duration. Rather than implementing looting, the sequence was compressed to briefly show drop positions immediately after the start, reveal the white circle first, and then move the blue playzone. Each draw was tuned to take approximately 60 seconds at 1× speed regardless of participant count.
+
+### 5. Giving movement and combat a story
+
+Instead of simply making dots disappear, I added a flow in which nearby participants confront one another, engage in nonlethal combat, scatter and rest afterward, and then encounter other opponents. To avoid forcibly pulling distant opponents together even with small rosters, combat has a maximum engagement distance, while approach, position adjustment, disengagement, and playzone movement have maximum speed limits. Participants outside the playzone move toward safety, while late participants are presented as running toward the boundary before being eliminated by the Blue Zone.
+
+### 6. Comparing it again with an actual spectator screen
+
+I placed real tournament minimap images beside the result and readjusted the white circle, blue danger zone, kill feed, and late-game zoom. As the survivor count falls, the camera moves closer to the playzone, but the zoom is capped so participants do not disappear off screen. Traces of the unimplemented Red Zone were removed.
+
+### 7. Completing the features required of a draw tool
+
+I added full-ranking preservation, ranking copy, seed input and reproduction, participant and ticket counts, input error messages, and a mobile layout. On mobile, the map sits below the start and reset controls so the battleground is immediately accessible after setup. When the draw starts, the roster input collapses into a summary and the page automatically moves to the battleground. To keep the battlefield unobstructed, only the 3 most recent kill-feed entries appear below the map. Finally, result, placement, and movement randomness were separated, and fixed time steps and a Web Crypto-based random seed were introduced to finalize the v1.0.0 architecture.
+
+### Lessons learned
+
+- Writing down the purpose and principles first provides clear criteria for choosing features.
+- Convincing visuals and correct results are separate concerns, so both numbers and repeated runs are needed for verification.
+- Keeping only the spectator conventions needed for the draw worked better than reproducing the actual game in full.
+- Even a non-developer can improve quality with AI by clearly describing the desired experience and the parts that feel awkward.
+
+---
+
+## 🕹️ How to Use
+
+### Basic flow
+
+1. Enter participant names separated by commas or line breaks.
+2. To give someone multiple tickets, enter them as `name*3`.
+3. Set the speed and seed if needed. The default is 3× for 2–4 total tickets and 2× for 5 or more. Leaving the seed blank generates a new one automatically.
+4. Press **시작** to proceed through drop-position observation → playzone contraction → movement and combat → the last person standing.
+5. When the draw ends, use **전체 순위 보기** or **순위 복사**.
+
+### Mobile flow
+
+On mobile, the screen is arranged in this order:
 
 ```text
-프로젝트 제목
-참가자 입력과 인원·티켓 수
-시드와 속도
-시작·리셋
-전장
-최근 킬로그
-공정성 안내
+Project title
+Participant input and participant/ticket counts
+Seed and speed
+Start and reset
+Battleground
+Recent kill feed
+Fairness information
 ```
 
-**시작**을 누르면 명단 입력 영역이 `참가자 N명 · 티켓 N장` 요약으로 자동 접히고, 화면이 전장으로 부드럽게 이동합니다. 경기 중에도 **명단 보기 / 명단 접기**로 입력 내용을 확인할 수 있으며, **리셋**하면 명단 입력 영역이 다시 펼쳐집니다.
+Pressing **시작** automatically collapses the roster input into a `참가자 N명 · 티켓 N장` summary and smoothly moves the screen to the battleground. During the draw, **명단 보기 / 명단 접기** lets you inspect the input, and pressing **리셋** expands the roster input again.
 
-### 속도 기본값
+### Default speeds
 
-- 전체 티켓 **2~4장**: 기본 **3배속**(약 20초)
-- 전체 티켓 **5장 이상**: 기본 **2배속**(약 30초)
-- 속도 슬라이더를 직접 조절하면 사용자가 선택한 값을 유지합니다. **리셋**하면 현재 티켓 수에 맞는 추천 기본값으로 돌아갑니다.
+- **2–4 total tickets**: default **3×** (approximately 20 seconds)
+- **5 or more total tickets**: default **2×** (approximately 30 seconds)
+- If the speed slider is adjusted manually, the selected value is retained. Pressing **리셋** restores the recommended default for the current ticket count.
 
-### 입력 조건
+### Input requirements
 
-- 서로 다른 참가자가 최소 2명 필요합니다.
-- 전체 티켓은 2장 이상 100장 이하입니다.
-- 이름은 40자 이하입니다.
-- `이름*N`의 N은 1 이상의 정수입니다.
-- 시드는 비워 두거나 1~8자리 16진수로 입력합니다.
+- At least 2 distinct participants are required.
+- The total number of tickets must be between 2 and 100.
+- Names may contain up to 40 characters.
+- N in `name*N` must be an integer of 1 or greater.
+- The seed may be left empty or entered as a 1–8 digit hexadecimal value.
 
-### 입력 예시
+### Input example
 
 ```text
 공주님, 일원님*5, 재범님*5, 하빈님*3, 병식님, 정환님
 ```
 
-이 경우 고유 참가자는 6명이고, 전체 티켓은 16장입니다.
+In this example, there are 6 unique participants and 16 total tickets.
 
-### 결과 복사 예시
+### Copied result example
 
 ```text
 PUBG FINAL DRAW 결과
@@ -191,96 +194,97 @@ roster-hash: 91d4a1c2
 
 ---
 
-## ⚙️ 어떻게 동작하나 - 비개발자 설명
+## ⚙️ How It Works — A Non-Developer-Friendly Explanation
 
-### 파일 하나에 화면과 이미지까지 들어 있다
+### The screen and image are included in one file
 
-화면 디자인, 추첨 로직, 에란겔 지도, 애니메이션이 모두 `index.html` 안에 들어 있습니다. 지도는 WebP 이미지를 Base64 문자열로 바꿔 HTML에 내장했습니다. 인터넷 연결 없이 파일을 직접 열어도 동작합니다.
+The visual design, draw logic, Erangel map, and animations are all contained in `index.html`. The map was converted from a WebP image to a Base64 string and embedded in the HTML. It works even when the file is opened directly without an internet connection.
 
-### 하나의 시드에서 세 개의 난수 흐름을 만든다
+### One seed produces three random streams
 
-사용자가 보는 시드는 하나지만 내부에서는 역할별 난수를 따로 만듭니다.
+The user sees a single seed, but internally the app creates separate random streams for different roles:
 
-1. **결과 난수**: 전체 순위를 결정합니다.
-2. **배치 난수**: 낙하 위치, 자기장 경로, 페이싱의 연출 변주를 만듭니다.
-3. **이동 난수**: 이동, 비살상 교전, 섬광 등 실시간 장면을 만듭니다.
+1. **Result randomness**: Determines the full ranking.
+2. **Placement randomness**: Produces drop positions, the playzone path, and presentation variations in pacing.
+3. **Movement randomness**: Produces real-time scenes such as movement, nonlethal combat, and flashes.
 
-### 화면 주사율과 게임 시간을 분리한다
+### Display refresh rate is separated from match time
 
-내부 시뮬레이션은 고정된 시간 단위로 진행됩니다. 60Hz와 144Hz 모니터에서 화면을 그리는 횟수가 달라도 추첨 타이밍이 크게 달라지지 않으며, 진행 중 배속을 바꾸어도 시간이 앞뒤로 점프하지 않습니다.
+The internal simulation advances in fixed time steps. Even though 60Hz and 144Hz monitors render the screen a different number of times, the draw timing remains largely unchanged. Changing the speed during a draw also does not make time jump backward or forward.
 
-### 참가자 정보는 브라우저 안에서만 처리한다
+### Participant information stays in the browser
 
-명단과 결과는 현재 브라우저 안에서 처리됩니다. 이 HTML에는 참가자 명단을 외부 서버로 전송하는 네트워크 요청이 없습니다.
+The roster and results are processed only in the current browser. This HTML makes no network request that transmits the participant roster to an external server.
 
 ---
 
-## 📂 파일 구성
+## 📂 File Structure
 
-복잡한 개발 폴더 없이 두 파일만 사용합니다.
+The project uses only three files, with no complex development directory:
 
-| 파일 | 설명 |
+| File | Description |
 |---|---|
-| `index.html` | 지도 이미지, 추첨 로직, 화면과 애니메이션을 포함한 전체 웹앱 |
-| `README.md` | 프로젝트 소개, 사용 방법, 공정성, 개발 과정과 배포 안내 |
+| `index.html` | The complete web app, including the map image, draw logic, interface, and animations |
+| `README.md` | English project overview, usage, fairness, development process, and deployment guide |
+| `README.ko.md` | Korean project overview, usage, fairness, development process, and deployment guide |
 
 ---
 
-## 🚀 실행과 배포
+## 🚀 Running and Deployment
 
-### 로컬에서 실행
+### Run locally
 
-1. `index.html`을 내려받습니다.
-2. Chrome, Edge, Safari 등 브라우저로 엽니다.
-3. 명단을 입력하고 시작합니다.
+1. Download `index.html`.
+2. Open it in a browser such as Chrome, Edge, or Safari.
+3. Enter a roster and start the draw.
 
-### GitHub Pages로 배포
+### Deploy with GitHub Pages
 
-1. 저장소 `pubg-final-draw`의 최상위에 `index.html`과 `README.md`를 올립니다.
-2. 저장소의 **Settings → Pages**로 이동합니다.
-3. **Deploy from a branch**를 선택합니다.
-4. `main` 브랜치와 `/(root)`를 선택해 저장합니다.
-5. 생성된 Pages 주소로 접속합니다.
+1. Upload `index.html`, `README.md`, and `README.ko.md` to the root of the `pubg-final-draw` repository.
+2. Go to the repository's **Settings → Pages**.
+3. Select **Deploy from a branch**.
+4. Select the `main` branch and `/(root)`, then save.
+5. Open the generated Pages URL.
 
-`index.html`이 저장소의 기본 진입 파일이므로 별도의 빌드나 파일명 변경이 필요하지 않습니다.
+Because `index.html` is the repository's default entry file, no separate build or filename change is required.
 
 ---
 
-## 🧪 v1.0.0 배포 전 검증
+## 🧪 Pre-Release Verification for v1.0.0
 
-개발 과정의 설명과 겹치지 않도록, 최종 배포본에서는 아래 결과만 회귀 점검했습니다.
+To avoid duplicating the development-process narrative, only the following results were regression-tested in the final release:
 
-| 구분 | 확인 내용 |
+| Category | Verification |
 |---|---|
-| **결과 안정성** | 같은 앱·알고리즘 버전, 같은 명단·입력 순서·시드에서 전체 순위가 반복 실행과 데스크톱·모바일 환경에서 동일한지 확인 |
-| **알고리즘 회귀** | 3장, 26장, 38장 명단과 여러 고정 시드에서 프리릴리스 마지막 버전과 v1.0.0의 전체 순위가 동일한지 확인 |
-| **입력 검증** | 빈 이름, 참가자 1명, 잘못된 `이름*N`, 100장 초과, 잘못된 시드가 시작 전에 차단되는지 확인 |
-| **시드 동작** | 빈 입력으로 연속 실행하면 매번 새 랜덤 시드를 만들고, 직접 입력한 시드는 그대로 유지되는지 확인 |
-| **진행 시간** | 2~4장은 기본 3배속(약 20초), 5장 이상은 기본 2배속(약 30초)으로 설정되는지 확인. 사용자가 직접 고른 속도는 유지되고, 리셋 시 현재 티켓 수의 추천값으로 돌아가며, 진행 중 속도를 변경해도 시간이 앞뒤로 튀지 않는지 확인 |
-| **관전 연출** | 초기 관찰과 흰 원 예고, 6단계 수축, 분산 이동, 교전·자기장 탈락, 후반 확대가 순서대로 작동하는지 확인 |
-| **소수 인원** | 2~4명 경기에서 먼 참가자끼리 즉시 교전하지 않고, 근거리에서만 접근·격전·이탈이 시작되는지 확인. 각 이동 단계의 최고 속도 제한과 생존자 화면 노출도 함께 확인 |
-| **화면 대응** | 데스크톱은 전장이 가용 영역을 채우는지 확인. 모바일은 설정·시작 버튼 다음에 전장이 배치되고, 시작 시 명단이 접히며 전장으로 자동 이동하는지 확인. 킬로그는 지도 아래에서 최근 3건만 한 줄로 표시되고 기록이 없을 때 숨겨지는지 확인 |
-| **완주와 결과 보존** | 3장과 기본 26장 경기가 브라우저 오류 없이 종료되고 전체 순위가 누락 없이 보존되는지 확인. 100장 명단은 입력·초기 관찰·첫 탈락 진행을 확인 |
+| **Result stability** | Verified that the full ranking remains identical across repeated runs and desktop/mobile environments when the app and algorithm versions, roster, input order, and seed are the same |
+| **Algorithm regression** | Verified that the final prerelease and v1.0.0 produce identical full rankings with 3-ticket, 26-ticket, and 38-ticket rosters and multiple fixed seeds |
+| **Input validation** | Verified that empty names, a single participant, invalid `name*N` syntax, more than 100 tickets, and invalid seeds are blocked before the draw starts |
+| **Seed behavior** | Verified that consecutive runs with an empty field generate a new random seed each time, while a manually entered seed is retained unchanged |
+| **Duration** | Verified that the default is 3× (approximately 20 seconds) for 2–4 tickets and 2× (approximately 30 seconds) for 5 or more. A manually selected speed is retained, reset restores the recommended value for the current ticket count, and changing speed during a draw does not cause time to jump backward or forward |
+| **Spectator presentation** | Verified that the initial observation and white-circle preview, 6-phase contraction, distributed movement, combat and Blue Zone eliminations, and late-game zoom work in sequence |
+| **Small rosters** | Verified that, in draws with 2–4 participants, distant participants do not engage immediately and that approach, engagement, and disengagement begin only at close range. Maximum speed limits for each movement phase and survivor visibility were also verified |
+| **Responsive layout** | Verified that the battleground fills the available area on desktop. On mobile, it appears after the settings and start button; the roster collapses at the start, and the page automatically moves to the battleground. The kill feed shows only the 3 most recent entries, each on one line below the map, and stays hidden when there are no entries |
+| **Completion and result preservation** | Verified that 3-ticket and default 26-ticket draws finish without browser errors and preserve the complete ranking without omissions. For a 100-ticket roster, input, initial observation, and progression through the first elimination were verified |
 
 ---
 
-## 📝 변경 이력
+## 📝 Changelog
 
-### v1.0.0 - 첫 정식 배포 (2026-07-22)
+### v1.0.0 — First Stable Release (2026-07-22)
 
-- **공정한 추첨 구조 확정**: 독립 티켓, Fisher-Yates 셔플, 결과·연출 난수 분리, `los-shuffle-v2` 고정
-- **PUBG 관전 연출 완성**: 에란겔 주요 지역 낙하, 6단계 자기장, 분산 이동, 근거리 교전과 최고 속도 제한, 교전·자기장 탈락, 후반 카메라
-- **실사용 기능 완성**: 전체 순위, 복사, 시드 재현, 입력 검증, 티켓 수에 따른 기본 속도 추천과 수동 속도 조절
-- **배포 형태 확정**: 데스크톱·모바일 대응, 모바일 설정→전장 흐름·명단 자동 접기·전장 자동 이동·최근 3건 킬로그, 단일 `index.html` 실행과 GitHub Pages 지원
-
----
-
-## 저작권 안내
-
-PUBG: BATTLEGROUNDS, 에란겔 및 관련 명칭·이미지의 권리는 **KRAFTON, Inc.**에 있습니다.
-
-이 프로젝트는 KRAFTON 사내에서 사용하는 비상업용 추첨 도구이며, 게임 상품이나 게임 클라이언트가 아닙니다.
+- **Finalized the fair draw architecture**: independent tickets, Fisher-Yates shuffle, separated result and presentation randomness, and fixed `los-shuffle-v2`
+- **Completed the PUBG spectator presentation**: drops near major Erangel locations, 6-phase playzone, distributed movement, close-range combat with maximum speed limits, combat and Blue Zone eliminations, and a late-game camera
+- **Completed practical features**: full ranking, copy, seed-based reproduction, input validation, recommended default speeds based on ticket count, and manual speed controls
+- **Finalized the distribution format**: desktop and mobile support, mobile settings → battleground flow, automatic roster collapse, automatic movement to the battleground, 3-entry recent kill feed, single-`index.html` execution, and GitHub Pages support
 
 ---
 
-에란겔에서 마지막 한 명이 남고, 최종 당첨자가 결정됩니다. 🏆
+## Copyright Notice
+
+The rights to PUBG: BATTLEGROUNDS, Erangel, and related names and images belong to **KRAFTON, Inc.**
+
+This project is a noncommercial draw tool used internally at KRAFTON. It is neither a game product nor a game client.
+
+---
+
+The last person remains on Erangel, and the final winner is decided. 🏆
